@@ -24,6 +24,7 @@ Share2SSH is a small, native macOS app for pushing files to the servers you alre
 - **Remote file explorer** — browse the server, create/delete folders, upload into any directory, download files back, and set a folder as your upload destination.
 - **Trust on first use** host‑key verification backed by `~/.ssh/known_hosts`.
 - **Sandboxed** — access to `~/.ssh` is granted once via a standard macOS permission prompt.
+- **Automatic updates** via [Sparkle](https://sparkle-project.org) — new releases are delivered straight from GitHub (or use *Share2SSH ▸ Check for Updates…*).
 
 ## Screenshots
 

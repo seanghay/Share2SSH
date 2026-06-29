@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  SPARKLE_VERSION: "2.9.3"
+
 jobs:
   build:
     runs-on: macos-15
@@ -30,6 +33,7 @@ jobs:
             -scheme Share2SSH \
             -configuration Release \
             -derivedDataPath build \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -40,15 +44,18 @@ jobs:
         run: |
           set -euo pipefail
           APP="build/Build/Products/Release/Share2SSH.app"
-          # Sign nested frameworks first (if any), then the extension, then the app.
-          find "$APP" -type d -name "*.framework" -exec codesign --force -o runtime -s - {} \; || true
+          # Deep-sign embedded frameworks first (Sparkle ships nested XPC services
+          # and an updater app that must be signed), then the extension, then the app.
+          for fw in "$APP"/Contents/Frameworks/*.framework; do
+            [ -e "$fw" ] && codesign --force --deep -o runtime -s - "$fw"
+          done
           codesign --force -o runtime -s - \
             --entitlements ShareExtension/ShareExtension.entitlements \
             "$APP/Contents/PlugIns/ShareExtension.appex"
           codesign --force -o runtime -s - \
             --entitlements Share2SSH/Share2SSH.entitlements \
             "$APP"
-          codesign --verify --strict "$APP"
+          codesign --verify --deep --strict "$APP"
           codesign -dvv "$APP" 2>&1 | grep -iE "Signature=|flags="
 
       - name: Package DMG
@@ -64,14 +71,32 @@ jobs:
           hdiutil create -volname "Share2SSH" -srcfolder staging -ov -format UDZO "dist/${DMG}"
           echo "dmg=dist/${DMG}" >> "$GITHUB_OUTPUT"
 
+      - name: Generate Sparkle appcast
+        if: github.event_name == 'release'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" -o sparkle.tar.xz
+          mkdir -p sparkle && tar -xJf sparkle.tar.xz -C sparkle
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_key.txt"
+          sparkle/bin/generate_appcast \
+            --ed-key-file "$RUNNER_TEMP/sparkle_key.txt" \
+            --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" \
+            dist/
+          rm -f "$RUNNER_TEMP/sparkle_key.txt"
+          echo "=== appcast.xml ==="; cat dist/appcast.xml
+
       - name: Upload DMG as build artifact
         uses: actions/upload-artifact@v4
         with:
           name: Share2SSH-dmg
           path: ${{ steps.dmg.outputs.dmg }}
 
-      - name: Attach DMG to release
+      - name: Attach DMG + appcast to release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.dmg.outputs.dmg }}
+          files: |
+            dist/*.dmg
+            dist/appcast.xml

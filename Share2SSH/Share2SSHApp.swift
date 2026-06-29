@@ -40,6 +40,7 @@ final class AppModel: ObservableObject {
 @main
 struct Share2SSHApp: App {
     @StateObject private var model = AppModel()
+    @StateObject private var updater = UpdaterController()
 
     var body: some Scene {
         WindowGroup {
@@ -54,5 +55,11 @@ struct Share2SSHApp: App {
                 .frame(minWidth: 720, minHeight: 480)
         }
         .windowToolbarStyle(.unified)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { updater.checkForUpdates() }
+                    .disabled(!updater.canCheckForUpdates)
+            }
+        }
     }
 }
