@@ -1,7 +1,13 @@
 <div align="center">
+	<img src="assets/icon.png" width="128" height="128" alt="Share2SSH icon">
 	<h1>Share2SSH</h1>
 	<p>
 		<b>Send files from your Mac to remote Linux servers over SSH — by drag &amp; drop or the Finder Share menu.</b>
+	</p>
+	<p>
+		<a href="https://github.com/seanghay/Share2SSH/releases/latest"><img src="https://img.shields.io/github/v/release/seanghay/Share2SSH?label=download&style=flat-square" alt="Latest release"></a>
+		<img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="Platform: macOS">
+		<img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT">
 	</p>
 	<br>
 </div>

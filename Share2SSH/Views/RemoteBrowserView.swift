@@ -20,6 +20,10 @@ struct RemoteBrowserView: View {
             header
             Divider()
             content
+            if let dl = model.download {
+                Divider()
+                downloadBar(dl)
+            }
             Divider()
             footer
         }
@@ -101,7 +105,7 @@ struct RemoteBrowserView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if model.entries.isEmpty && !model.isLoading {
             ContentUnavailableView("Empty folder", systemImage: "folder")
-                .frame(maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(model.entries) { entry in
                 RemoteRow(entry: entry)
@@ -137,6 +141,52 @@ struct RemoteBrowserView: View {
             .disabled(!model.isConnected || model.currentPath.isEmpty)
         }
         .padding(10)
+    }
+
+    private func downloadBar(_ dl: RemoteBrowserModel.DownloadProgress) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "arrow.down.circle").foregroundStyle(.tint)
+                Text("Downloading \(dl.fileName)").font(.callout).lineLimit(1)
+                Spacer()
+                Text("\(Int(dl.fraction * 100))%").font(.caption).foregroundStyle(.secondary)
+                Button(action: { model.cancelDownload() }) {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Cancel download")
+            }
+            ProgressView(value: dl.fraction)
+            HStack(spacing: 8) {
+                Text(byteDetail(dl.received, dl.total))
+                if dl.bytesPerSecond > 0 {
+                    Text("· \(ByteCountFormatter.string(fromByteCount: Int64(dl.bytesPerSecond), countStyle: .file))/s")
+                }
+                if let eta = etaText(received: dl.received, total: dl.total, speed: dl.bytesPerSecond) {
+                    Text("· \(eta)")
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .padding(10)
+    }
+
+    private func etaText(received: UInt64, total: UInt64, speed: Double) -> String? {
+        guard speed > 0, total > received else { return nil }
+        let remaining = Double(total - received) / speed
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = remaining >= 3600 ? [.hour, .minute] : [.minute, .second]
+        formatter.unitsStyle = .abbreviated
+        guard let text = formatter.string(from: remaining) else { return nil }
+        return "\(text) left"
+    }
+
+    private func byteDetail(_ received: UInt64, _ total: UInt64) -> String {
+        let r = ByteCountFormatter.string(fromByteCount: Int64(received), countStyle: .file)
+        guard total > 0 else { return r }
+        let t = ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file)
+        return "\(r) / \(t)"
     }
 
     private var passphraseSheet: some View {

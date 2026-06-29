@@ -7,6 +7,9 @@ enum BrowserError: LocalizedError {
     var errorDescription: String? { "Not connected to the server." }
 }
 
+/// Thrown to unwind a download that the user cancelled.
+struct DownloadCancelled: Error {}
+
 /// Holds an open SSH/SFTP connection for browsing a remote filesystem. One
 /// session per server, reused across navigation/actions. Runs off the main actor.
 actor RemoteBrowserSession {
@@ -100,7 +103,12 @@ actor RemoteBrowserSession {
         }
     }
 
-    func download(_ entry: RemoteEntry, to localURL: URL) async throws {
+    func download(
+        _ entry: RemoteEntry,
+        to localURL: URL,
+        onProgress: @Sendable (UInt64) -> Void = { _ in },
+        isCancelled: @Sendable () -> Bool = { false }
+    ) async throws {
         guard let sftp else { throw BrowserError.notConnected }
         let total = (try? await sftp.getAttributes(at: entry.path).size) ?? 0
         FileManager.default.createFile(atPath: localURL.path, contents: nil)
@@ -113,14 +121,26 @@ actor RemoteBrowserSession {
         defer { Task { try? await file.close() } }
 
         var offset: UInt64 = 0
+        var lastReport = Date.distantPast
         while true {
+            if isCancelled() {
+                try? handle.close()
+                try? FileManager.default.removeItem(at: localURL) // drop the partial file
+                throw DownloadCancelled()
+            }
             let remaining = total > offset ? total - offset : UInt64(chunkSize)
             let length = UInt32(min(UInt64(chunkSize), remaining))
             let buffer = try await file.read(from: offset, length: length)
             if buffer.readableBytes == 0 { break }
             handle.write(Data(buffer.readableBytesView))
             offset += UInt64(buffer.readableBytes)
+            let now = Date()
+            if now.timeIntervalSince(lastReport) >= 0.15 {
+                lastReport = now
+                onProgress(offset)
+            }
             if total > 0 && offset >= total { break }
         }
+        onProgress(offset)
     }
 }

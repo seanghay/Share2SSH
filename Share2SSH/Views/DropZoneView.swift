@@ -4,26 +4,49 @@ import UniformTypeIdentifiers
 /// Drag-and-drop target (plus a file picker) that enqueues uploads for one server.
 struct DropZoneView: View {
     @EnvironmentObject private var queue: TransferQueue
+    @EnvironmentObject private var browsers: BrowserStore
     let server: SSHServer
     @Binding var mode: TransferMode
     @Binding var remoteDir: String
 
     @State private var isTargeted = false
+    @State private var showDirectoryPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 Picker("Mode", selection: $mode) {
-                    ForEach(TransferMode.allCases) { Text($0.title).tag($0) }
+                    ForEach(TransferMode.allCases) { mode in
+                        Label(mode.shortTitle, systemImage: mode.icon).tag(mode)
+                    }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .fixedSize()
 
+                Label(mode.subtitle, systemImage: mode.icon)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .transition(.opacity)
+                    .id(mode)
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "folder")
+                    .foregroundStyle(.secondary)
                 TextField("Remote directory", text: $remoteDir, prompt: Text("~/uploads"))
                     .textFieldStyle(.roundedBorder)
+                Button("Browse…") { showDirectoryPicker = true }
+                    .help("Browse the server to pick a folder")
             }
 
             dropTarget
+        }
+        .animation(.easeInOut(duration: 0.15), value: mode)
+        .sheet(isPresented: $showDirectoryPicker) {
+            RemoteDirectoryPicker(model: browsers.model(for: server)) { chosen in
+                remoteDir = chosen
+            }
         }
     }
 

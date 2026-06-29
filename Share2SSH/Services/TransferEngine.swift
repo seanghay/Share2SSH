@@ -13,9 +13,11 @@ actor TransferEngine {
 
     // Citadel writes in 32 KB SFTP slices and awaits each one, so throughput is
     // latency-bound. We send one slice-sized chunk per task and keep many in
-    // flight to pipeline them across the round-trip.
+    // flight to pipeline them across the round-trip. Deeper windows fill the
+    // bandwidth-delay product on higher-latency links (at the cost of memory:
+    // window * chunkSize bytes buffered).
     private let chunkSize = 32_000
-    private let maxInFlightWrites = 64
+    private let maxInFlightWrites = 256
 
     private struct Cancelled: Error {}
 

@@ -22,7 +22,7 @@ struct TransferListView: View {
                     systemImage: "tray",
                     description: Text("Dropped and shared files appear here.")
                 )
-                .frame(maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(queue.items) { item in
                     TransferRow(item: item) { queue.cancel(item) }

@@ -18,10 +18,25 @@ enum TransferMode: String, Codable, CaseIterable, Sendable, Identifiable {
         }
     }
 
+    /// Compact label for segmented controls.
+    var shortTitle: String {
+        switch self {
+        case .copy: return "Copy"
+        case .sync: return "Sync"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .copy: return "doc.on.doc"
+        case .sync: return "arrow.triangle.2.circlepath"
+        }
+    }
+
     var subtitle: String {
         switch self {
-        case .copy: return "Always upload and overwrite"
-        case .sync: return "Skip files already up to date on the server"
+        case .copy: return "Always upload, overwriting the remote file."
+        case .sync: return "Skip files already up to date on the server (same size & date)."
         }
     }
 }

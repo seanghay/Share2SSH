@@ -12,9 +12,20 @@ final class RemoteBrowserModel: ObservableObject {
     @Published var statusMessage: String?
     @Published var needsPassphrase = false
     @Published private(set) var isConnected = false
+    @Published private(set) var download: DownloadProgress?
+
+    struct DownloadProgress: Equatable {
+        var fileName: String
+        var received: UInt64
+        var total: UInt64
+        var bytesPerSecond: Double
+        var fraction: Double { total > 0 ? min(1, Double(received) / Double(total)) : 0 }
+    }
 
     private(set) var server: SSHServer
     private let session = RemoteBrowserSession()
+    private let downloadCancel = CancellationFlags()
+    private let downloadKey = "current"
     private var connected = false
     private var userDisconnected = false
     private var sessionPassphrase: String?
@@ -118,12 +129,38 @@ final class RemoteBrowserModel: ObservableObject {
     }
 
     func download(_ entry: RemoteEntry, to localURL: URL) async {
+        let total = entry.size ?? 0
+        let start = Date()
+        downloadCancel.clear(downloadKey)
+        download = DownloadProgress(fileName: entry.name, received: 0, total: total, bytesPerSecond: 0)
         do {
-            try await session.download(entry, to: localURL)
+            try await session.download(
+                entry, to: localURL,
+                onProgress: { [weak self] received in
+                    Task { @MainActor in
+                        guard let self, self.download != nil else { return }
+                        let elapsed = Date().timeIntervalSince(start)
+                        let speed = elapsed > 0 ? Double(received) / elapsed : 0
+                        self.download = DownloadProgress(
+                            fileName: entry.name, received: received, total: total, bytesPerSecond: speed
+                        )
+                    }
+                },
+                isCancelled: { [downloadCancel, downloadKey] in downloadCancel.isCancelled(downloadKey) }
+            )
+            download = nil
             statusMessage = "Downloaded \(entry.name)"
+        } catch is DownloadCancelled {
+            download = nil
+            statusMessage = "Download cancelled."
         } catch {
+            download = nil
             self.error = describe(error)
         }
+    }
+
+    func cancelDownload() {
+        downloadCancel.cancel(downloadKey)
     }
 
     // MARK: Passphrase
