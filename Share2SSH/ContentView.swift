@@ -60,13 +60,17 @@ struct ContentView: View {
     }
 }
 
-/// Detail pane: drop zone for one server plus the live transfer list.
+/// Detail pane: a "Send" tab (drop zone + transfers) and a "Files" tab (remote
+/// explorer) for the selected server.
 struct ServerDetailView: View {
+    enum DetailTab: Hashable { case send, files }
+
     let server: SSHServer
+    @EnvironmentObject private var browsers: BrowserStore
 
     @State private var mode: TransferMode
     @State private var remoteDir: String
-    @State private var showBrowser = false
+    @State private var selectedTab: DetailTab = .send
 
     init(server: SSHServer) {
         self.server = server
@@ -76,7 +80,8 @@ struct ServerDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
+            HStack(spacing: 8) {
+                ConnectionDot(connected: browsers.isConnected(server.alias))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(server.alias).font(.title2).bold()
                     Text(server.displaySummary)
@@ -84,27 +89,45 @@ struct ServerDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button {
-                    showBrowser = true
-                } label: {
-                    Label("Browse Files", systemImage: "externaldrive.connected.to.line.below")
-                }
             }
             .padding()
 
-            DropZoneView(server: server, mode: $mode, remoteDir: $remoteDir)
-                .padding(.horizontal)
+            TabView(selection: $selectedTab) {
+                sendTab
+                    .tabItem { Label("Send", systemImage: "arrow.up.doc") }
+                    .tag(DetailTab.send)
 
-            Divider().padding(.top)
-
-            TransferListView()
+                RemoteBrowserView(
+                    model: browsers.model(for: server),
+                    remoteDir: $remoteDir,
+                    onUseFolder: { selectedTab = .send }
+                )
+                .tabItem { Label("Files", systemImage: "folder") }
+                .tag(DetailTab.files)
+            }
+            .padding([.horizontal, .bottom])
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .sheet(isPresented: $showBrowser) {
-            RemoteBrowserView(server: server) { chosen in
-                remoteDir = chosen
-            }
+    }
+
+    private var sendTab: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DropZoneView(server: server, mode: $mode, remoteDir: $remoteDir)
+                .padding(.top)
+            Divider().padding(.top)
+            TransferListView()
         }
+    }
+}
+
+/// Small filled circle indicating connection state.
+struct ConnectionDot: View {
+    let connected: Bool
+    var body: some View {
+        Circle()
+            .fill(connected ? Color.green : Color.secondary.opacity(0.4))
+            .frame(width: 9, height: 9)
+            .help(connected ? "Connected" : "Not connected")
     }
 }
 

@@ -6,6 +6,7 @@ import Combine
 @MainActor
 final class AppModel: ObservableObject {
     let servers = ServerStore()
+    let browsers = BrowserStore()
     lazy var queue = TransferQueue(servers: servers)
 
     /// Jobs we've already enqueued this session, so repeated inbox scans (on
@@ -45,6 +46,7 @@ struct Share2SSHApp: App {
             ContentView()
                 .environmentObject(model.servers)
                 .environmentObject(model.queue)
+                .environmentObject(model.browsers)
                 .onAppear { model.scanInbox() }
                 .onReceive(NotificationCenter.default.publisher(
                     for: NSApplication.didBecomeActiveNotification

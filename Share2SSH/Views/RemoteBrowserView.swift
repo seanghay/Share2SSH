@@ -1,25 +1,19 @@
 import SwiftUI
 import AppKit
 
-/// Remote SFTP file explorer presented as a sheet. Lets the user navigate the
-/// server, create/delete folders, download files, and choose a directory as
-/// the upload destination.
+/// Remote SFTP file explorer, shown as the "Files" tab for a server. Navigate
+/// the server, create/delete folders, upload, download, disconnect, and pick a
+/// directory as the upload destination.
 struct RemoteBrowserView: View {
     @EnvironmentObject private var queue: TransferQueue
-    @StateObject private var model: RemoteBrowserModel
-    @Environment(\.dismiss) private var dismiss
-
-    let onChooseDirectory: (String) -> Void
+    @ObservedObject var model: RemoteBrowserModel
+    @Binding var remoteDir: String
+    let onUseFolder: () -> Void
 
     @State private var showNewFolder = false
     @State private var newFolderName = ""
     @State private var passphrase = ""
     @State private var rememberPassphrase = false
-
-    init(server: SSHServer, onChooseDirectory: @escaping (String) -> Void) {
-        _model = StateObject(wrappedValue: RemoteBrowserModel(server: server))
-        self.onChooseDirectory = onChooseDirectory
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,9 +23,7 @@ struct RemoteBrowserView: View {
             Divider()
             footer
         }
-        .frame(width: 620, height: 500)
         .task { await model.start() }
-        .onDisappear { Task { await model.stop() } }
         .alert("New Folder", isPresented: $showNewFolder) {
             TextField("Name", text: $newFolderName)
             Button("Create") {
@@ -72,7 +64,7 @@ struct RemoteBrowserView: View {
                 Image(systemName: "square.and.arrow.up")
             }
             .help("Upload files here")
-            .disabled(model.currentPath.isEmpty)
+            .disabled(!model.isConnected || model.currentPath.isEmpty)
 
             Text(model.currentPath.isEmpty ? "…" : model.currentPath)
                 .font(.callout.monospaced())
@@ -81,13 +73,33 @@ struct RemoteBrowserView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if model.isLoading { ProgressView().controlSize(.small) }
+
+            if model.isConnected {
+                Button(role: .destructive) {
+                    Task { await model.disconnect() }
+                } label: {
+                    Label("Disconnect", systemImage: "bolt.slash")
+                }
+                .help("Disconnect from the server")
+            }
         }
         .padding(10)
+        .disabled(!model.isConnected && !isBusy)
     }
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && !model.isLoading {
+        if !model.isConnected && !isBusy {
+            VStack(spacing: 14) {
+                Image(systemName: "bolt.horizontal.circle")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.secondary)
+                Text("Not connected").font(.headline)
+                Button("Connect") { Task { await model.connect() } }
+                    .buttonStyle(.borderedProminent)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if model.entries.isEmpty && !model.isLoading {
             ContentUnavailableView("Empty folder", systemImage: "folder")
                 .frame(maxHeight: .infinity)
         } else {
@@ -118,13 +130,11 @@ struct RemoteBrowserView: View {
                 Text(status).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Close") { dismiss() }
             Button("Use This Folder for Uploads") {
-                onChooseDirectory(model.currentPath)
-                dismiss()
+                remoteDir = model.currentPath
+                onUseFolder()
             }
-            .keyboardShortcut(.defaultAction)
-            .disabled(model.currentPath.isEmpty)
+            .disabled(!model.isConnected || model.currentPath.isEmpty)
         }
         .padding(10)
     }
@@ -137,10 +147,7 @@ struct RemoteBrowserView: View {
             Toggle("Remember in Keychain", isOn: $rememberPassphrase)
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) {
-                    model.needsPassphrase = false
-                    dismiss()
-                }
+                Button("Cancel", role: .cancel) { model.needsPassphrase = false }
                 Button("Unlock") {
                     let value = passphrase
                     passphrase = ""
@@ -155,6 +162,8 @@ struct RemoteBrowserView: View {
     }
 
     // MARK: Helpers
+
+    private var isBusy: Bool { model.isLoading }
 
     private func uploadFiles() {
         let panel = NSOpenPanel()

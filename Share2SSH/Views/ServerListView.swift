@@ -3,6 +3,7 @@ import SwiftUI
 /// Sidebar list of configured servers with add / edit / delete.
 struct ServerListView: View {
     @EnvironmentObject private var servers: ServerStore
+    @EnvironmentObject private var browsers: BrowserStore
     @Binding var selection: String?
     let onAdd: () -> Void
     let onEdit: (SSHServer) -> Void
@@ -17,6 +18,9 @@ struct ServerListView: View {
                         .tag(server.alias)
                         .contextMenu {
                             Button("Edit…") { onEdit(server) }
+                            if browsers.isConnected(server.alias) {
+                                Button("Disconnect") { browsers.disconnect(server.alias) }
+                            }
                             Button("Delete…", role: .destructive) { pendingDelete = server }
                         }
                 }
@@ -43,7 +47,10 @@ struct ServerListView: View {
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                if let server = pendingDelete { servers.delete(server) }
+                if let server = pendingDelete {
+                    browsers.forget(server.alias)
+                    servers.delete(server)
+                }
                 pendingDelete = nil
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -53,11 +60,14 @@ struct ServerListView: View {
     }
 
     private func serverRow(_ server: SSHServer) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(server.alias).font(.body)
-            Text(server.displaySummary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            ConnectionDot(connected: browsers.isConnected(server.alias))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(server.alias).font(.body)
+                Text(server.displaySummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 2)
     }

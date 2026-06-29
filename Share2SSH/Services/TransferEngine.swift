@@ -11,7 +11,11 @@ actor TransferEngine {
         let fileURL: URL
     }
 
-    private let chunkSize = 1 << 18 // 256 KiB
+    // Citadel writes in 32 KB SFTP slices and awaits each one, so throughput is
+    // latency-bound. We send one slice-sized chunk per task and keep many in
+    // flight to pipeline them across the round-trip.
+    private let chunkSize = 32_000
+    private let maxInFlightWrites = 64
 
     private struct Cancelled: Error {}
 
@@ -94,7 +98,7 @@ actor TransferEngine {
         sftp: SFTPClient,
         itemID: String,
         cancelFlags: CancellationFlags,
-        progress: @Sendable (TransferStatus) -> Void
+        progress: @escaping @Sendable (TransferStatus) -> Void
     ) async throws -> TransferStatus {
         let fileName = fileURL.lastPathComponent
         let remotePath = joinRemote(remoteDir, fileName)
@@ -118,35 +122,54 @@ actor TransferEngine {
         defer { try? handle.close() }
 
         let file = try await sftp.openFile(filePath: remotePath, flags: [.write, .create, .truncate])
-        let start = Date()
-        var offset: UInt64 = 0
+        let meter = ProgressMeter(total: localSize, emit: progress)
+        meter.emitInitial()
 
-        func emit() {
-            let elapsed = Date().timeIntervalSince(start)
-            let speed = elapsed > 0 ? Double(offset) / elapsed : 0
-            let fraction = localSize == 0 ? 1 : Double(offset) / Double(localSize)
-            progress(.transferring(
-                fractionCompleted: fraction, bytesSent: offset,
-                totalBytes: localSize, bytesPerSecond: speed
-            ))
-        }
-        emit()
-
-        while true {
-            if cancelFlags.isCancelled(itemID) {
+        var cancelledMidway = false
+        do {
+            try await withThrowingTaskGroup(of: Int.self) { group in
+                var inFlight = 0
+                var readOffset: UInt64 = 0
+                while true {
+                    if cancelFlags.isCancelled(itemID) { cancelledMidway = true; break }
+                    let chunk = handle.readData(ofLength: chunkSize)
+                    if chunk.isEmpty { break }
+                    let writeOffset = readOffset
+                    readOffset += UInt64(chunk.count)
+                    // Keep the pipeline full: once the window is saturated, wait
+                    // for one write to land before queuing the next.
+                    if inFlight >= maxInFlightWrites, let n = try await group.next() {
+                        inFlight -= 1
+                        meter.record(n)
+                    }
+                    group.addTask {
+                        var buffer = ByteBuffer()
+                        buffer.writeBytes(chunk)
+                        try await file.write(buffer, at: writeOffset)
+                        return chunk.count
+                    }
+                    inFlight += 1
+                }
+                if cancelledMidway { group.cancelAll() }
+                while let n = try await group.next() { meter.record(n) }
+            }
+        } catch {
+            if cancelledMidway {
                 try? await file.close()
-                try? await sftp.remove(at: remotePath) // delete the partial upload
+                try? await sftp.remove(at: remotePath)
                 throw Cancelled()
             }
-            let chunk = handle.readData(ofLength: chunkSize)
-            if chunk.isEmpty { break }
-            var buffer = ByteBuffer()
-            buffer.writeBytes(chunk)
-            try await file.write(buffer, at: offset)
-            offset += UInt64(chunk.count)
-            emit()
+            throw error
         }
+
+        if cancelledMidway {
+            try? await file.close()
+            try? await sftp.remove(at: remotePath) // delete the partial upload
+            throw Cancelled()
+        }
+
         try await file.close()
+        meter.finish()
 
         // Best-effort: preserve modification time so Sync mode is meaningful next run.
         var attrs = SFTPFileAttributes()
@@ -187,5 +210,54 @@ actor TransferEngine {
     private func joinRemote(_ dir: String, _ name: String) -> String {
         if dir == "." || dir.isEmpty { return name }
         return dir.hasSuffix("/") ? dir + name : dir + "/" + name
+    }
+}
+
+/// Thread-safe progress accumulator for pipelined writes. Coalesces the flood
+/// of per-chunk completions into at most ~7 UI updates per second.
+private final class ProgressMeter: @unchecked Sendable {
+    private let lock = NSLock()
+    private let total: UInt64
+    private let start = Date()
+    private let emit: @Sendable (TransferStatus) -> Void
+    private var done: UInt64 = 0
+    private var lastEmit = Date()
+
+    init(total: UInt64, emit: @escaping @Sendable (TransferStatus) -> Void) {
+        self.total = total
+        self.emit = emit
+    }
+
+    func emitInitial() {
+        emit(.transferring(
+            fractionCompleted: total == 0 ? 1 : 0,
+            bytesSent: 0, totalBytes: total, bytesPerSecond: 0
+        ))
+    }
+
+    func record(_ bytes: Int) {
+        lock.lock()
+        done += UInt64(bytes)
+        let now = Date()
+        let shouldEmit = now.timeIntervalSince(lastEmit) >= 0.15
+        if shouldEmit { lastEmit = now }
+        let snapshot = done
+        lock.unlock()
+        if shouldEmit { fire(snapshot) }
+    }
+
+    func finish() {
+        lock.lock(); let snapshot = done; lock.unlock()
+        fire(snapshot)
+    }
+
+    private func fire(_ done: UInt64) {
+        let elapsed = Date().timeIntervalSince(start)
+        let speed = elapsed > 0 ? Double(done) / elapsed : 0
+        let fraction = total == 0 ? 1 : min(1, Double(done) / Double(total))
+        emit(.transferring(
+            fractionCompleted: fraction, bytesSent: done,
+            totalBytes: total, bytesPerSecond: speed
+        ))
     }
 }

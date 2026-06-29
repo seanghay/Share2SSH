@@ -11,23 +11,56 @@ final class RemoteBrowserModel: ObservableObject {
     @Published var error: String?
     @Published var statusMessage: String?
     @Published var needsPassphrase = false
+    @Published private(set) var isConnected = false
 
-    let server: SSHServer
+    private(set) var server: SSHServer
     private let session = RemoteBrowserSession()
     private var connected = false
+    private var userDisconnected = false
     private var sessionPassphrase: String?
+
+    /// Notifies the owning store when this server connects/disconnects.
+    var onConnectionChange: ((String, Bool) -> Void)?
 
     init(server: SSHServer) {
         self.server = server
     }
 
+    func updateServer(_ server: SSHServer) {
+        self.server = server
+    }
+
+    /// Connect on first appearance, unless the user explicitly disconnected.
     func start() async {
+        guard !userDisconnected, !isConnected else { return }
         await load(server.defaultRemoteDir)
+    }
+
+    /// Explicit (re)connect requested by the user.
+    func connect() async {
+        userDisconnected = false
+        await load(currentPath.isEmpty ? server.defaultRemoteDir : currentPath)
+    }
+
+    func disconnect() async {
+        userDisconnected = true
+        await session.disconnect()
+        connected = false
+        setConnected(false)
+        entries = []
+        statusMessage = "Disconnected."
     }
 
     func stop() async {
         await session.disconnect()
         connected = false
+        setConnected(false)
+    }
+
+    private func setConnected(_ value: Bool) {
+        guard isConnected != value else { return }
+        isConnected = value
+        onConnectionChange?(server.alias, value)
     }
 
     // MARK: Navigation
@@ -134,6 +167,7 @@ final class RemoteBrowserModel: ObservableObject {
                 statusMessage = "Trusted new host “\(server.resolvedHost)”."
             }
             connected = true
+            setConnected(true)
             return true
         } catch {
             self.error = describe(error)
