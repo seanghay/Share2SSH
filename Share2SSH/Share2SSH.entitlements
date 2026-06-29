@@ -14,5 +14,14 @@
 	<array>
 		<string>group.com.seanghay.Share2SSH</string>
 	</array>
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>com.seanghay.Share2SSH-spks</string>
+		<string>com.seanghay.Share2SSH-spki</string>
+	</array>
+	<key>com.apple.security.temporary-exception.shared-preference.read-write</key>
+	<array>
+		<string>com.seanghay.Share2SSH</string>
+	</array>
 </dict>
 </plist>

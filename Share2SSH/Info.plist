@@ -8,6 +8,8 @@
 	<string>04alvNpoAyelizw1VLPitjCIquK3kUOaRuX6uX0tniI=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 </dict>
