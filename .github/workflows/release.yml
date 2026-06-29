@@ -36,6 +36,21 @@ jobs:
             DEVELOPMENT_TEAM="" \
             build
 
+      - name: Ad-hoc sign (so sandbox + App Groups work)
+        run: |
+          set -euo pipefail
+          APP="build/Build/Products/Release/Share2SSH.app"
+          # Sign nested frameworks first (if any), then the extension, then the app.
+          find "$APP" -type d -name "*.framework" -exec codesign --force -o runtime -s - {} \; || true
+          codesign --force -o runtime -s - \
+            --entitlements ShareExtension/ShareExtension.entitlements \
+            "$APP/Contents/PlugIns/ShareExtension.appex"
+          codesign --force -o runtime -s - \
+            --entitlements Share2SSH/Share2SSH.entitlements \
+            "$APP"
+          codesign --verify --strict "$APP"
+          codesign -dvv "$APP" 2>&1 | grep -iE "Signature=|flags="
+
       - name: Package DMG
         id: dmg
         run: |
