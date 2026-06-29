@@ -33,14 +33,23 @@ struct TransferJob: Codable, Identifiable, Hashable, Sendable {
 enum TransferStatus: Equatable, Sendable {
     case queued
     case connecting
-    case transferring(fractionCompleted: Double)
+    case transferring(fractionCompleted: Double, bytesSent: UInt64, totalBytes: UInt64, bytesPerSecond: Double)
     case skipped
     case completed
+    case cancelled
     case failed(String)
 
     var isTerminal: Bool {
         switch self {
-        case .skipped, .completed, .failed: return true
+        case .skipped, .completed, .cancelled, .failed: return true
+        default: return false
+        }
+    }
+
+    /// Whether the transfer can still be cancelled.
+    var isCancellable: Bool {
+        switch self {
+        case .queued, .connecting, .transferring: return true
         default: return false
         }
     }

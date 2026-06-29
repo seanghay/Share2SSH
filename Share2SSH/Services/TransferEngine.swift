@@ -13,6 +13,8 @@ actor TransferEngine {
 
     private let chunkSize = 1 << 18 // 256 KiB
 
+    private struct Cancelled: Error {}
+
     /// Connect once, then upload every item, reporting status per item.
     /// A connection-level failure fails all not-yet-started items.
     func uploadBatch(
@@ -23,10 +25,17 @@ actor TransferEngine {
         passphrase: String?,
         sshDirectoryURL: URL?,
         validator: TOFUHostKeyValidator,
+        cancelFlags: CancellationFlags,
         report: @Sendable @escaping (String, TransferStatus) -> Void
     ) async {
         guard !items.isEmpty else { return }
-        for item in items { report(item.id, .connecting) }
+        // Items cancelled before we even connect.
+        let pending = items.filter { item in
+            if cancelFlags.isCancelled(item.id) { report(item.id, .cancelled); return false }
+            return true
+        }
+        guard !pending.isEmpty else { return }
+        for item in pending { report(item.id, .connecting) }
 
         let client: SSHClient
         let sftp: SFTPClient
@@ -44,19 +53,28 @@ actor TransferEngine {
             sftp = try await client.openSFTP()
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
-            for item in items { report(item.id, .failed(message)) }
+            for item in pending { report(item.id, .failed(message)) }
             return
         }
 
         let resolvedDir = await resolveRemoteDir(remoteDir, sftp: sftp)
         await ensureDirectory(resolvedDir, sftp: sftp)
 
-        for item in items {
+        for item in pending {
+            if cancelFlags.isCancelled(item.id) {
+                report(item.id, .cancelled)
+                continue
+            }
             do {
-                let outcome = try await upload(item.fileURL, into: resolvedDir, mode: mode, sftp: sftp) { fraction in
-                    report(item.id, .transferring(fractionCompleted: fraction))
+                let outcome = try await upload(
+                    item.fileURL, into: resolvedDir, mode: mode, sftp: sftp,
+                    itemID: item.id, cancelFlags: cancelFlags
+                ) { status in
+                    report(item.id, status)
                 }
                 report(item.id, outcome)
+            } catch is Cancelled {
+                report(item.id, .cancelled)
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 report(item.id, .failed(message))
@@ -74,7 +92,9 @@ actor TransferEngine {
         into remoteDir: String,
         mode: TransferMode,
         sftp: SFTPClient,
-        progress: @Sendable (Double) -> Void
+        itemID: String,
+        cancelFlags: CancellationFlags,
+        progress: @Sendable (TransferStatus) -> Void
     ) async throws -> TransferStatus {
         let fileName = fileURL.lastPathComponent
         let remotePath = joinRemote(remoteDir, fileName)
@@ -98,16 +118,33 @@ actor TransferEngine {
         defer { try? handle.close() }
 
         let file = try await sftp.openFile(filePath: remotePath, flags: [.write, .create, .truncate])
+        let start = Date()
         var offset: UInt64 = 0
-        progress(localSize == 0 ? 1 : 0)
+
+        func emit() {
+            let elapsed = Date().timeIntervalSince(start)
+            let speed = elapsed > 0 ? Double(offset) / elapsed : 0
+            let fraction = localSize == 0 ? 1 : Double(offset) / Double(localSize)
+            progress(.transferring(
+                fractionCompleted: fraction, bytesSent: offset,
+                totalBytes: localSize, bytesPerSecond: speed
+            ))
+        }
+        emit()
+
         while true {
+            if cancelFlags.isCancelled(itemID) {
+                try? await file.close()
+                try? await sftp.remove(at: remotePath) // delete the partial upload
+                throw Cancelled()
+            }
             let chunk = handle.readData(ofLength: chunkSize)
             if chunk.isEmpty { break }
             var buffer = ByteBuffer()
             buffer.writeBytes(chunk)
             try await file.write(buffer, at: offset)
             offset += UInt64(chunk.count)
-            progress(localSize == 0 ? 1 : Double(offset) / Double(localSize))
+            emit()
         }
         try await file.close()
 

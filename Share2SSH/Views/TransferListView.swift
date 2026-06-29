@@ -25,7 +25,7 @@ struct TransferListView: View {
                 .frame(maxHeight: .infinity)
             } else {
                 List(queue.items) { item in
-                    TransferRow(item: item)
+                    TransferRow(item: item) { queue.cancel(item) }
                 }
                 .listStyle(.inset)
             }
@@ -36,6 +36,7 @@ struct TransferListView: View {
 
 private struct TransferRow: View {
     let item: TransferItem
+    let onCancel: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -45,9 +46,18 @@ private struct TransferRow: View {
                 Text("→ \(item.serverAlias):\(item.remoteDir)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if case .transferring(let fraction) = item.status {
+                if case .transferring(let fraction, let sent, let total, let speed) = item.status {
                     ProgressView(value: fraction)
                         .progressViewStyle(.linear)
+                    HStack(spacing: 8) {
+                        Text(progressDetail(sent: sent, total: total))
+                        if let speedText = speedText(speed) { Text("· \(speedText)") }
+                        if let eta = etaText(sent: sent, total: total, speed: speed) {
+                            Text("· \(eta)")
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
                 if case .failed(let message) = item.status {
                     Text(message)
@@ -60,6 +70,14 @@ private struct TransferRow: View {
             Text(statusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if item.status.isCancellable {
+                Button(action: onCancel) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Cancel")
+            }
         }
         .padding(.vertical, 4)
     }
@@ -77,6 +95,8 @@ private struct TransferRow: View {
             Image(systemName: "minus.circle").foregroundStyle(.secondary)
         case .completed:
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case .cancelled:
+            Image(systemName: "xmark.circle").foregroundStyle(.secondary)
         case .failed:
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
         }
@@ -86,10 +106,35 @@ private struct TransferRow: View {
         switch item.status {
         case .queued: return "Queued"
         case .connecting: return "Connecting…"
-        case .transferring(let fraction): return "\(Int(fraction * 100))%"
+        case .transferring(let fraction, _, _, _): return "\(Int(fraction * 100))%"
         case .skipped: return "Up to date"
         case .completed: return "Done"
+        case .cancelled: return "Cancelled"
         case .failed: return "Failed"
         }
+    }
+
+    // MARK: Formatting
+
+    private func progressDetail(sent: UInt64, total: UInt64) -> String {
+        let sentStr = ByteCountFormatter.string(fromByteCount: Int64(sent), countStyle: .file)
+        let totalStr = ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file)
+        return "\(sentStr) / \(totalStr)"
+    }
+
+    private func speedText(_ bytesPerSecond: Double) -> String? {
+        guard bytesPerSecond > 0 else { return nil }
+        let rate = ByteCountFormatter.string(fromByteCount: Int64(bytesPerSecond), countStyle: .file)
+        return "\(rate)/s"
+    }
+
+    private func etaText(sent: UInt64, total: UInt64, speed: Double) -> String? {
+        guard speed > 0, total > sent else { return nil }
+        let remaining = Double(total - sent) / speed
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = remaining >= 3600 ? [.hour, .minute] : [.minute, .second]
+        formatter.unitsStyle = .abbreviated
+        guard let text = formatter.string(from: remaining) else { return nil }
+        return "\(text) left"
     }
 }

@@ -30,6 +30,7 @@ final class TransferQueue: ObservableObject {
     @Published var infoMessage: String?
 
     private let engine = TransferEngine()
+    private let cancelFlags = CancellationFlags()
     private unowned let servers: ServerStore
 
     private var sessionPassphrases: [String: String] = [:]
@@ -70,7 +71,21 @@ final class TransferQueue: ObservableObject {
     }
 
     func clearFinished() {
+        for item in items where item.status.isTerminal { cancelFlags.clear(item.id) }
         items.removeAll { $0.status.isTerminal }
+    }
+
+    /// Cancel a queued or in-flight transfer.
+    func cancel(_ item: TransferItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }),
+              items[index].status.isCancellable else { return }
+        cancelFlags.cancel(item.id)
+        // If it hasn't started yet, mark it now; in-flight items get reported
+        // back as `.cancelled` by the engine.
+        if case .queued = items[index].status {
+            items[index].status = .cancelled
+            cleanupJobIfFinished(items[index].jobID)
+        }
     }
 
     // MARK: Passphrase
@@ -155,7 +170,8 @@ final class TransferQueue: ObservableObject {
 
         await engine.uploadBatch(
             items: batch, server: server, remoteDir: remoteDir, mode: mode,
-            passphrase: pass, sshDirectoryURL: sshDirectoryURL, validator: validator, report: report
+            passphrase: pass, sshDirectoryURL: sshDirectoryURL, validator: validator,
+            cancelFlags: cancelFlags, report: report
         )
 
         KnownHostsStore.shared.commitIfNeeded(validator)
