@@ -1,0 +1,62 @@
+name: Build Release DMG
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project Share2SSH.xcodeproj -scheme Share2SSH
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild \
+            -project Share2SSH.xcodeproj \
+            -scheme Share2SSH \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Package DMG
+        id: dmg
+        run: |
+          set -euo pipefail
+          APP="build/Build/Products/Release/Share2SSH.app"
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          DMG="Share2SSH-${VERSION}.dmg"
+          mkdir -p dist staging
+          cp -R "$APP" staging/
+          ln -s /Applications staging/Applications
+          hdiutil create -volname "Share2SSH" -srcfolder staging -ov -format UDZO "dist/${DMG}"
+          echo "dmg=dist/${DMG}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload DMG as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Share2SSH-dmg
+          path: ${{ steps.dmg.outputs.dmg }}
+
+      - name: Attach DMG to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.dmg.outputs.dmg }}
