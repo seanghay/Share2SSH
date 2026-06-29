@@ -119,7 +119,11 @@ struct ShareView: View {
                 systemImage: "server.rack",
                 description: Text("Add a server in the Share2SSH app first.")
             )
-            .frame(maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            buttonRow {
+                Button("Close", role: .cancel) { model.cancel() }
+                    .keyboardShortcut(.defaultAction)
+            }
         } else {
             Form {
                 Picker("Server", selection: Binding(

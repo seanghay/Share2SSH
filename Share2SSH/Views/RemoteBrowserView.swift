@@ -28,7 +28,6 @@ struct RemoteBrowserView: View {
             Divider()
             footer
         }
-        .task { await model.start() }
         .alert("New Folder", isPresented: $showNewFolder) {
             TextField("Name", text: $newFolderName)
             Button("Create") {
