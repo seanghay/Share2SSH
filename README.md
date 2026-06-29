@@ -25,6 +25,13 @@ Share2SSH is a small, native macOS app for pushing files to the servers you alre
 - **Trust on first use** host‑key verification backed by `~/.ssh/known_hosts`.
 - **Sandboxed** — access to `~/.ssh` is granted once via a standard macOS permission prompt.
 
+## Screenshots
+
+<div align="center">
+	<img src="assets/screenshot-send.png" width="49%" alt="Send tab with a live upload">
+	<img src="assets/screenshot-files.png" width="49%" alt="Remote file explorer">
+</div>
+
 ## Install
 
 1. Download the latest `Share2SSH.dmg` from the [Releases](https://github.com/seanghay/Share2SSH/releases) page.

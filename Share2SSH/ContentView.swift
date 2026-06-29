@@ -92,28 +92,65 @@ struct ServerDetailView: View {
             }
             .padding()
 
-            TabView(selection: $selectedTab) {
-                sendTab
-                    .tabItem { Label("Send", systemImage: "arrow.up.doc") }
-                    .tag(DetailTab.send)
+            tabBar
+                .padding(.horizontal)
+                .padding(.bottom, 6)
 
-                RemoteBrowserView(
-                    model: browsers.model(for: server),
-                    remoteDir: $remoteDir,
-                    onUseFolder: { selectedTab = .send }
-                )
-                .tabItem { Label("Files", systemImage: "folder") }
-                .tag(DetailTab.files)
+            Group {
+                switch selectedTab {
+                case .send:
+                    sendTab
+                case .files:
+                    RemoteBrowserView(
+                        model: browsers.model(for: server),
+                        remoteDir: $remoteDir,
+                        onUseFolder: { selectedTab = .send }
+                    )
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding([.horizontal, .bottom])
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    private var tabBar: some View {
+        HStack(spacing: 4) {
+            tabButton(.send, "Send", "square.and.arrow.up.fill")
+            tabButton(.files, "Files", "folder.fill")
+        }
+        .padding(3)
+        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 9))
+        .fixedSize()
+    }
+
+    private func tabButton(_ tab: DetailTab, _ title: String, _ icon: String) -> some View {
+        let isSelected = selectedTab == tab
+        return Button {
+            withAnimation(.easeInOut(duration: 0.12)) { selectedTab = tab }
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.callout.weight(isSelected ? .semibold : .regular))
+                .padding(.vertical, 5)
+                .padding(.horizontal, 16)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .shadow(color: .black.opacity(0.12), radius: 1, y: 0.5)
+                    }
+                }
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private var sendTab: some View {
         VStack(alignment: .leading, spacing: 0) {
             DropZoneView(server: server, mode: $mode, remoteDir: $remoteDir)
-                .padding(.top)
+                .padding(.top, 24)
+                .padding(.horizontal, 4)
             Divider().padding(.top)
             TransferListView()
         }

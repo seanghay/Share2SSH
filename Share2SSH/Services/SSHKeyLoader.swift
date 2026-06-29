@@ -75,6 +75,15 @@ nonisolated enum SSHKeyLoader {
         }
     }
 
+    /// Raw OpenSSH private key text for a server's identity file, if readable.
+    /// Used to hand the key to the Share Extension via the App Group.
+    static func rawKeyText(for server: SSHServer, sshDirectoryURL: URL?) -> String? {
+        guard let url = try? resolveIdentityFile(server, sshDirectoryURL: sshDirectoryURL) else {
+            return nil
+        }
+        return try? String(contentsOf: url, encoding: .utf8)
+    }
+
     private static func resolveIdentityFile(
         _ server: SSHServer,
         sshDirectoryURL: URL?

@@ -88,7 +88,14 @@ struct RemoteDirectoryPicker: View {
 
     @ViewBuilder
     private var content: some View {
-        if !model.isConnected && !model.isLoading {
+        if model.isLoading && !model.isConnected {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Connecting to \(model.server.alias)…")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !model.isConnected {
             VStack(spacing: 14) {
                 Image(systemName: "bolt.horizontal.circle")
                     .font(.system(size: 36))

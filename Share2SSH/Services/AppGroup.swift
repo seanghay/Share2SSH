@@ -31,31 +31,34 @@ enum AppGroup {
         containerURL?.appendingPathComponent(serversCacheFileName)
     }
 
+    /// A copy of ~/.ssh/known_hosts the extension can use for host validation.
+    static var knownHostsURL: URL? {
+        containerURL?.appendingPathComponent("known_hosts")
+    }
+
     // MARK: - Server cache (written by main app, read by extension)
 
-    /// Sanitized server info exposed to the extension. Deliberately excludes
-    /// anything secret — just enough to render a picker and build a job.
+    /// Everything the Share Extension needs to connect and upload on its own,
+    /// since it cannot read ~/.ssh. Includes the private key text (the user
+    /// opted in to sharing it through the sandbox-isolated App Group).
     struct ServerCacheEntry: Codable, Identifiable, Hashable, Sendable {
         var alias: String
         var summary: String
+        var host: String
+        var user: String
+        var port: Int
         var defaultRemoteDir: String
         var defaultMode: TransferMode
+        var privateKey: String?
         var id: String { alias }
     }
 
-    static func writeServerCache(_ servers: [SSHServer]) {
+    static func writeServerCache(_ entries: [ServerCacheEntry]) {
         guard let url = serversCacheURL else { return }
-        let entries = servers.map {
-            ServerCacheEntry(
-                alias: $0.alias,
-                summary: $0.displaySummary,
-                defaultRemoteDir: $0.defaultRemoteDir,
-                defaultMode: $0.defaultMode
-            )
-        }
         do {
             let data = try JSONEncoder().encode(entries)
             try data.write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch {
             NSLog("Share2SSH: failed to write server cache: \(error)")
         }

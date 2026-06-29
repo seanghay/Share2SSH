@@ -47,7 +47,7 @@ final class SSHConfigManager {
             }
             return merged
         }
-        AppGroup.writeServerCache(servers)
+        exportToAppGroup(servers)
         return servers
     }
 
@@ -87,6 +87,33 @@ final class SSHConfigManager {
         saveMetadata(metadata)
 
         _ = try loadServers()
+    }
+
+    // MARK: App Group export (for the Share Extension)
+
+    /// Write the enriched server cache (incl. private key text) and a copy of
+    /// known_hosts so the sandboxed Share Extension can upload on its own.
+    private func exportToAppGroup(_ servers: [SSHServer]) {
+        let sshDirectoryURL = bookmarks.sshDirectoryURL
+        let entries = servers.map { server in
+            AppGroup.ServerCacheEntry(
+                alias: server.alias,
+                summary: server.displaySummary,
+                host: server.resolvedHost,
+                user: server.user,
+                port: server.port,
+                defaultRemoteDir: server.defaultRemoteDir,
+                defaultMode: server.defaultMode,
+                privateKey: SSHKeyLoader.rawKeyText(for: server, sshDirectoryURL: sshDirectoryURL)
+            )
+        }
+        AppGroup.writeServerCache(entries)
+
+        if let src = sshDirectoryURL?.appendingPathComponent("known_hosts"),
+           let dst = AppGroup.knownHostsURL,
+           let data = try? Data(contentsOf: src) {
+            try? data.write(to: dst, options: .atomic)
+        }
     }
 
     // MARK: Config file IO

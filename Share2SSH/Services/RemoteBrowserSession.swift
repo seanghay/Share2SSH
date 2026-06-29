@@ -40,6 +40,26 @@ actor RemoteBrowserSession {
         self.sftp = sftp
     }
 
+    /// Run a small command to collect basic machine details. Best-effort.
+    func fetchMachineInfo() async -> MachineInfo? {
+        guard let client else { return nil }
+        let command = """
+        echo "host=$(hostname 2>/dev/null)"; \
+        echo "kernel=$(uname -sr 2>/dev/null)"; \
+        echo "arch=$(uname -m 2>/dev/null)"; \
+        (. /etc/os-release 2>/dev/null; echo "os=${PRETTY_NAME}"); \
+        echo "uptime=$(uptime -p 2>/dev/null)"; \
+        echo "cpu=$(nproc 2>/dev/null)"; \
+        echo "mem=$(free -h 2>/dev/null | awk '/Mem:/{print $2}')"
+        """
+        guard let buffer = try? await client.executeCommand(command, maxResponseSize: 64 * 1024) else {
+            return nil
+        }
+        let text = String(decoding: buffer.readableBytesView, as: UTF8.self)
+        let info = MachineInfo.parse(text)
+        return info.isEmpty ? nil : info
+    }
+
     func disconnect() async {
         try? await sftp?.close()
         try? await client?.close()

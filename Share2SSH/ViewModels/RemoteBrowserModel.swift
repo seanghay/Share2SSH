@@ -12,6 +12,7 @@ final class RemoteBrowserModel: ObservableObject {
     @Published var statusMessage: String?
     @Published var needsPassphrase = false
     @Published private(set) var isConnected = false
+    @Published private(set) var machineInfo: MachineInfo?
     @Published private(set) var download: DownloadProgress?
 
     struct DownloadProgress: Equatable {
@@ -58,6 +59,7 @@ final class RemoteBrowserModel: ObservableObject {
         await session.disconnect()
         connected = false
         setConnected(false)
+        machineInfo = nil
         entries = []
         statusMessage = "Disconnected."
     }
@@ -205,6 +207,9 @@ final class RemoteBrowserModel: ObservableObject {
             }
             connected = true
             setConnected(true)
+            if machineInfo == nil {
+                machineInfo = await session.fetchMachineInfo()
+            }
             return true
         } catch {
             self.error = describe(error)

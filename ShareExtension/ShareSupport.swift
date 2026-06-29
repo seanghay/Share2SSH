@@ -21,33 +21,31 @@ enum TransferMode: String, Codable, CaseIterable, Identifiable, Sendable {
 struct ServerCacheEntry: Codable, Identifiable, Hashable, Sendable {
     var alias: String
     var summary: String
+    var host: String
+    var user: String
+    var port: Int
     var defaultRemoteDir: String
     var defaultMode: TransferMode
+    var privateKey: String?
     var id: String { alias }
-}
-
-struct TransferJob: Codable, Identifiable, Sendable {
-    var id: String
-    var serverAlias: String
-    var mode: TransferMode
-    var remoteDir: String
-    var fileNames: [String]
 }
 
 enum AppGroup {
     static let identifier = "group.com.seanghay.Share2SSH"
-    static let hostBundleID = "com.seanghay.Share2SSH"
     static let serversCacheFileName = "servers.json"
-    static let jobFileName = "job.json"
 
     static var containerURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)
     }
 
-    static func inboxURL(for jobID: String) -> URL? {
+    static var knownHostsURL: URL? {
+        containerURL?.appendingPathComponent("known_hosts")
+    }
+
+    static func stagingURL(for id: String) -> URL? {
         containerURL?
-            .appendingPathComponent("Inbox", isDirectory: true)
-            .appendingPathComponent(jobID, isDirectory: true)
+            .appendingPathComponent("Staging", isDirectory: true)
+            .appendingPathComponent(id, isDirectory: true)
     }
 
     static func readServerCache() -> [ServerCacheEntry] {

@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		AA0000000000000000000003 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000002 /* Citadel */; };
+		BB0000000000000000000021 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000020 /* Citadel */; };
 		BB0000000000000000000008 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000002 /* ShareViewController.swift */; };
 		BB0000000000000000000009 /* ShareSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000003 /* ShareSupport.swift */; };
 		BB000000000000000000000A /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000004 /* ShareView.swift */; };
+		BB0000000000000000000023 /* ShareUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000022 /* ShareUploader.swift */; };
 		BB0000000000000000000012 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000001 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -44,6 +46,7 @@
 		BB0000000000000000000002 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		BB0000000000000000000003 /* ShareSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSupport.swift; sourceTree = "<group>"; };
 		BB0000000000000000000004 /* ShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareView.swift; sourceTree = "<group>"; };
+		BB0000000000000000000022 /* ShareUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareUploader.swift; sourceTree = "<group>"; };
 		BB0000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BB0000000000000000000006 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -69,6 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB0000000000000000000021 /* Citadel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,6 +102,7 @@
 			children = (
 				BB0000000000000000000002 /* ShareViewController.swift */,
 				BB0000000000000000000004 /* ShareView.swift */,
+				BB0000000000000000000022 /* ShareUploader.swift */,
 				BB0000000000000000000003 /* ShareSupport.swift */,
 				BB0000000000000000000005 /* Info.plist */,
 				BB0000000000000000000006 /* ShareExtension.entitlements */,
@@ -147,6 +152,7 @@
 			);
 			name = ShareExtension;
 			packageProductDependencies = (
+				BB0000000000000000000020 /* Citadel */,
 			);
 			productName = ShareExtension;
 			productReference = BB0000000000000000000001 /* ShareExtension.appex */;
@@ -221,6 +227,7 @@
 			files = (
 				BB0000000000000000000008 /* ShareViewController.swift in Sources */,
 				BB000000000000000000000A /* ShareView.swift in Sources */,
+				BB0000000000000000000023 /* ShareUploader.swift in Sources */,
 				BB0000000000000000000009 /* ShareSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -377,7 +384,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.seanghay.Share2SSH;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -411,7 +418,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.seanghay.Share2SSH;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -441,7 +448,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.seanghay.Share2SSH.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -470,7 +477,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.seanghay.Share2SSH.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -526,6 +533,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		BB0000000000000000000020 /* Citadel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000001 /* XCRemoteSwiftPackageReference "Citadel" */;
+			productName = Citadel;
+		};
 		AA0000000000000000000002 /* Citadel */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = AA0000000000000000000001 /* XCRemoteSwiftPackageReference "Citadel" */;

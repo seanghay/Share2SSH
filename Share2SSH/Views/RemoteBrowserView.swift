@@ -14,6 +14,7 @@ struct RemoteBrowserView: View {
     @State private var newFolderName = ""
     @State private var passphrase = ""
     @State private var rememberPassphrase = false
+    @State private var showMachineInfo = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,6 +79,16 @@ struct RemoteBrowserView: View {
 
             if model.isLoading { ProgressView().controlSize(.small) }
 
+            if let info = model.machineInfo {
+                Button { showMachineInfo.toggle() } label: {
+                    Image(systemName: "info.circle")
+                }
+                .help("Machine info")
+                .popover(isPresented: $showMachineInfo, arrowEdge: .bottom) {
+                    machineInfoPopover(info)
+                }
+            }
+
             if model.isConnected {
                 Button(role: .destructive) {
                     Task { await model.disconnect() }
@@ -93,7 +104,14 @@ struct RemoteBrowserView: View {
 
     @ViewBuilder
     private var content: some View {
-        if !model.isConnected && !isBusy {
+        if model.isLoading && !model.isConnected {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Connecting to \(model.server.alias)…")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !model.isConnected {
             VStack(spacing: 14) {
                 Image(systemName: "bolt.horizontal.circle")
                     .font(.system(size: 40))
@@ -170,6 +188,27 @@ struct RemoteBrowserView: View {
             .foregroundStyle(.secondary)
         }
         .padding(10)
+    }
+
+    private func machineInfoPopover(_ info: MachineInfo) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Remote machine", systemImage: "server.rack")
+                .font(.headline)
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 5) {
+                ForEach(info.rows, id: \.0) { row in
+                    GridRow {
+                        Text(row.0)
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.trailing)
+                        Text(row.1)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+            .font(.callout)
+        }
+        .padding(16)
+        .frame(width: 320)
     }
 
     private func etaText(received: UInt64, total: UInt64, speed: Double) -> String? {
